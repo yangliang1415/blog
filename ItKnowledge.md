@@ -11,10 +11,13 @@ author: yangliang
 * scala: `快学Scala`、`Scala编程`、`EffectiveScala`等书籍；重点理解函数式编程
 * java: JVM虚拟机
 
+
 ## 2. Algorithm 数据结构和算法(实践＋数学算法推导)
 * 常用数据结构和算法: `链表` `树` `图` `排序`等；刷题
 * 常用机器学习算法: `NB` `SVM` `LR` `随机森林` `决策树`等；总结推倒算法
 * 数学知识: `最优化`、`统计学`、`线性代数`、`微积分`等基础知识
+
+书单
 
 ## 3. OS 操作系统与网络(书籍阅读)
 * linux系统：`iostat` `netstat` `top`等常用命令
@@ -34,3 +37,15 @@ author: yangliang
 * 推荐
 
 ## 6. 程序员的自我修养
+
+
+## 7. 参考资料
+
+### [书单] (http://www.douban.com/people/68115743/doulists/all)
+
+
+
+
+
+
+
