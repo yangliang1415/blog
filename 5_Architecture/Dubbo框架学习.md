@@ -6,9 +6,17 @@
 * 服务启动
 * 一次请求的整个流程
 
+* Spring的动态代理技术，彻底摆脱‘new’
+* 设计模式: 工厂模式 和 代理模式
+
+
+proxy代理层按照DUBBO官方文档的解释，是用来生成RPC调用的Stub和Skeleton，这样做的目的是让您在DUBBO服务端定义的具体业务实现不需要关心“它将被怎样调用”，也是您定义的服务接口“与RPC框架脱耦”。下图是DUBBO框架proxy层的主要类图结构：
+
+
 关键几个概念:
 
-* Invoker – 执行具体的远程调用
+* Invoker – 执行具体的远程调用: 这里的Invoker是Provider的一个可调用Service的抽象，Invoker封装了Provider地址及Service接口信息。
+
 * Protocol – 服务地址的发布和订阅
 
 ```
@@ -30,6 +38,12 @@ Proxy层封装了所有接口的透明化代理，而在其它层都以Invoker�
 ## Dubbo流程
 
 Main启动: 容器模块com.alibaba.dubbo.container.Main 
+
+问题: Invoker如何生成的
+```
+Invoker<?> invoker = proxyFactory.getInvoker(ref, (Class) interfaceClass, registryURL.addParameterAndEncoded(Constants.EXPORT_KEY, url.toFullString()));
+```
+
 
 ### 1. DubboNamespaceHandler extends NamespaceHandlerSupport(spring 框架): 解析加载配置
 
@@ -105,20 +119,223 @@ export -> doExport -> doExportUrls -> doExportUrlsFor1Protocol(各种协议)
 	}
 ```
 
-下面重点分析： 获取invoker，到处exporter
+下面重点分析： 获取invoker，倒出exporter
 
 ```
 Invoker<?> invoker = proxyFactory.getInvoker(ref, (Class) interfaceClass, registryURL.addParameterAndEncoded(Constants.EXPORT_KEY, url.toFullString()));
 Exporter<?> exporter = protocol.export(invoker);
 exporters.add(exporter);
 ```
-proxyFactory.getInvoker实际调用对应协议例如DubboProtocol中的getInvoker方法
 
-问题:
+
+问题: 追踪 proxyFactory.getInvoker 的实际调用以及调用效果
 
 ```
+// 重要语句
 Invoker<?> invoker = proxyFactory.getInvoker(ref, (Class) interfaceClass, registryURL.addParameterAndEncoded(Constants.EXPORT_KEY, url.toFullString()));
+// 参数含义
+ref: 接口实现类引用
+interfaceClass: 接口类
+registryURL: 注册中心导出URL参数信息；url中包含host，port信息
+
+
+
+// 代理接口ProxyFactory定义
+public interface ProxyFactory {
+    <T> Invoker<T> getInvoker(T proxy, Class<T> type, URL url) throws RpcException;
+}
+
+// 抽象代理类 AbstractProxyFactory
+public abstract class AbstractProxyFactory implements ProxyFactory {
+}
+
+// 抽象代理类的一个实现: JavassistProxyFactory
+// javassist这个组件的功能：在运行时动态加载class，并进行实例化
+public class JavassistProxyFactory extends AbstractProxyFactory {
+	 ///////////////////// getInvoker 真面目
+    public <T> Invoker<T> getInvoker(T proxy, Class<T> type, URL url) {
+        final Wrapper wrapper = Wrapper.getWrapper(proxy.getClass().getName().indexOf('$') < 0 ? proxy.getClass() : type);        
+        // 返回 Invoker抽象代理, 复写doInvoke方法
+        return new AbstractProxyInvoker<T>(proxy, type, url) {
+            @Override
+            protected Object doInvoke(T proxy, String methodName, 
+                                      Class<?>[] parameterTypes, 
+                                      Object[] arguments) throws Throwable {
+                return wrapper.invokeMethod(proxy, methodName, parameterTypes, arguments);
+            }
+        };
+    }
+}
+
+public abstract class Wrapper {
+	// 问题: 代码生成代码
+	private static Wrapper makeWrapper(Class<?> c) {
+	}
+}
+
+
+
+
+// Invoker抽象代理: AbstractProxyInvoker
+public abstract class AbstractProxyInvoker<T> implements Invoker<T> {
+	 // invoke方法: 实际调用doInvoke
+    public Result invoke(Invocation invocation) throws RpcException {
+    	return new RpcResult(doInvoke(proxy, invocation.getMethodName(), invocation.getParameterTypes(), invocation.getArguments()));
+   	 }
+   	 // 实际调用
+   	 protected abstract Object doInvoke(T proxy, String methodName, Class<?>[] parameterTypes, Object[] arguments) throws Throwable;
+
+}
+
+// Invoke
+public interface Invoker<T> extends Node {
+	// service interface
+    Class<T> getInterface();
+	// invoke抽象
+    Result invoke(Invocation invocation) throws RpcException;
+}
+
+// Invoke抽象类: AbstractInvoker
+public abstract class AbstractInvoker<T> implements Invoker<T> {
+    private final Class<T>   type;
+    private final URL        url;
+
+    public Result invoke(Invocation inv) throws RpcException {
+        return doInvoke(invocation);
+    }
+    // 实际调用doInvoke
+    protected abstract Result doInvoke(Invocation invocation) throws Throwable;
+}
+
+// Dubbo Invoker
+public class DubboInvoker<T> extends AbstractInvoker<T> {
+	 // 问题: 合适初始化的clients
+    private final ExchangeClient[]      clients;
+    private final Set<Invoker<?>> invokers;
+    
+    protected Result doInvoke(final Invocation invocation) throws Throwable {
+        RpcInvocation inv = (RpcInvocation) invocation;
+        final String methodName = RpcUtils.getMethodName(invocation);
+        inv.setAttachment(Constants.PATH_KEY, getUrl().getPath());
+        inv.setAttachment(Constants.VERSION_KEY, version);
+        
+        ExchangeClient currentClient;     
+        currentClient = clients[index.getAndIncrement() % clients.length];
+        
+        RpcContext.getContext().setFuture(null);
+        // request
+        return (Result) currentClient.request(inv, timeout).get();
+	}
+}
 ```
+
+
+
+protocol协议
+
+```
+Exporter<?> exporter = protocol.export(invoker);
+exporters.add(exporter);
+```
+
+
+```
+public interface Protocol {
+	// 暴露远程服务
+    <T> Exporter<T> export(Invoker<T> invoker) throws RpcException;
+	//引用远程服务
+    <T> Invoker<T> refer(Class<T> type, URL url) throws RpcException;
+
+}
+
+public abstract class AbstractProtocol implements Protocol {
+	protected final Map<String, Exporter<?>> exporterMap = new ConcurrentHashMap<String, Exporter<?>>();
+    protected final Set<Invoker<?>> invokers = new ConcurrentHashSet<Invoker<?>>();
+}
+
+public class DubboProtocol extends AbstractProtocol {
+    private final Map<String, ExchangeServer> serverMap = new ConcurrentHashMap<String, ExchangeServer>(); // <host:port,Exchanger>
+    private final Map<String, ReferenceCountExchangeClient> referenceClientMap = new ConcurrentHashMap<String, ReferenceCountExchangeClient>(); // <host:port,Exchanger>
+    private final ConcurrentMap<String, LazyConnectExchangeClient> ghostClientMap = new ConcurrentHashMap<String, LazyConnectExchangeClient>();
+
+   public <T> Exporter<T> export(Invoker<T> invoker) throws RpcException {
+        URL url = invoker.getUrl();
+        
+        // export service.
+        String key = serviceKey(url);
+        DubboExporter<T> exporter = new DubboExporter<T>(invoker, key, exporterMap);
+        exporterMap.put(key, exporter);
+        
+        //export an stub service for dispaching event
+        Boolean isStubSupportEvent = url.getParameter(Constants.STUB_EVENT_KEY,Constants.DEFAULT_STUB_EVENT);
+        Boolean isCallbackservice = url.getParameter(Constants.IS_CALLBACK_SERVICE, false);
+        if (isStubSupportEvent && !isCallbackservice){
+            String stubServiceMethods = url.getParameter(Constants.STUB_EVENT_METHODS_KEY);
+            if (stubServiceMethods == null || stubServiceMethods.length() == 0 ){
+                if (logger.isWarnEnabled()){
+                    logger.warn(new IllegalStateException("consumer [" +url.getParameter(Constants.INTERFACE_KEY) +
+                            "], has set stubproxy support event ,but no stub methods founded."));
+                }
+            } else {
+                stubServiceMethodsMap.put(url.getServiceKey(), stubServiceMethods);
+            }
+        }
+
+        openServer(url);
+        
+        return exporter;
+    }
+}
+
+
+    private void openServer(URL url) {
+        // find server.
+        String key = url.getAddress();
+        //client 也可以暴露一个只有server可以调用的服务。
+        boolean isServer = url.getParameter(Constants.IS_SERVER_KEY,true);
+        if (isServer) {
+        	ExchangeServer server = serverMap.get(key);
+        	if (server == null) {
+        		serverMap.put(key, createServer(url));
+        	} else {
+        		//server支持reset,配合override功能使用
+        		server.reset(url);
+        	}
+        }
+    }
+
+    private ExchangeServer createServer(URL url) {
+        ExchangeServer server;
+        server = Exchangers.bind(url, requestHandler);
+        return server;
+    }
+```
+
+
+
+
+```
+Exporter
+
+public class DubboExporter<T> extends AbstractExporter<T> {
+    private final Map<String, Exporter<?>> exporterMap;
+
+}
+
+public abstract class AbstractExporter<T> implements Exporter<T> {
+    private final Invoker<T> invoker;
+}
+
+public interface Exporter<T> {
+	Invoker<T> getInvoker();
+}
+```
+
+
+
+
+
+
 
 
 
@@ -261,3 +478,19 @@ public class Main {
     }
 }
 ```
+
+
+
+# BIO Vs NIO
+http://tutorials.jenkov.com/java-nio/overview.html
+
+
+```
+Netty is a NIO client server framework which enables quick and easy development of network 
+applications such as protocol servers and clients. It greatly simplifies and streamlines network 
+programming such as TCP and UDP socket server.
+```
+
+# Hibernate框架
+主要是实现数据库与实体类间的映射，使的操作实体类相当与操作hibernate框架。
+
