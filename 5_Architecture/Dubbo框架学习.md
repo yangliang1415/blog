@@ -1,6 +1,28 @@
 # Dubbo
 
-通过阅读源码了解:
+Main启动: 容器模块com.alibaba.dubbo.container.Main 
+
+
+问题：
+
+* 业务服务DemoServiceImpl到AbstractProxyInvoker实例的封装: Javassist技术
+	
+	```
+Invoker<?> invoker = proxyFactory.getInvoker(ref, (Class) interfaceClass, registryURL.addParameterAndEncoded(Constants.EXPORT_KEY, url.toFullString()));
+	```
+
+* Invoker到Exporter的封装
+	
+	```
+	Exporter<?> exporter = protocol.export(invoker);
+   ```
+
+
+
+当网络通讯层收到一个请求后，会找到对应的Exporter实例，并调用它所对应的AbstractProxyInvoker实例，从而真正调用了服务提供者的代码。
+
+
+////////////通过阅读源码了解:
 
 * 服务配置的读取
 * 服务启动
@@ -36,16 +58,7 @@ Proxy层封装了所有接口的透明化代理，而在其它层都以Invoker�
 
 
 ## Dubbo流程
-
-Main启动: 容器模块com.alibaba.dubbo.container.Main 
-
-问题: Invoker如何生成的
-```
-Invoker<?> invoker = proxyFactory.getInvoker(ref, (Class) interfaceClass, registryURL.addParameterAndEncoded(Constants.EXPORT_KEY, url.toFullString()));
-```
-
-
-### 1. DubboNamespaceHandler extends NamespaceHandlerSupport(spring 框架): 解析加载配置
+### 1.服务启动：ServiceBean
 
 ```
 	public void init() {
@@ -332,6 +345,84 @@ public interface Exporter<T> {
 ```
 
 
+### 2.服务消费：ReferenceBean
+get() -> init() -> invoker = refprotocol.refer(interfaceClass, urls.get(0)) -> proxyFactory.getProxy(invoker)
+
+
+```
+public class ReferenceBean<T> extends ReferenceConfig<T> implements FactoryBean, ApplicationContextAware, InitializingBean, DisposableBean { 
+  	public void afterPropertiesSet() throws Exception {
+		// 读取完各种配置文件后
+       getObject();
+       // 实际调用 get()
+	}
+}
+```
+
+```
+public class ReferenceConfig<T> extends AbstractReferenceConfig {
+	private static final Protocol refprotocol = ExtensionLoader.getExtensionLoader(Protocol.class).getAdaptiveExtension();
+    private static final ProxyFactory proxyFactory = ExtensionLoader.getExtensionLoader(ProxyFactory.class).getAdaptiveExtension();
+
+
+    // 接口类型
+    private String               interfaceName;
+    private Class<?>             interfaceClass;
+    // 客户端类型
+    private String               client;
+    // 点对点直连服务提供地址
+    private String               url;
+    // 方法配置
+    private List<MethodConfig>   methods;
+    // 缺省配置
+    private ConsumerConfig       consumer;
+    private String				 protocol;
+    // 接口代理类引用
+    private transient volatile T ref;
+    private transient volatile Invoker<?> invoker;
+    
+    public synchronized T get() {
+    	if (ref == null) {
+    		init();
+    	}
+    	return ref;
+    }
+    
+    
+    private void init() {
+    	// 一些配置信息
+       Map<String, String> map = new HashMap<String, String>();
+       ref = createProxy(map);
+	 }  
+	 
+	 private T createProxy(Map<String, String> map) {
+	 	// 远程服务(用户指定url／注册中心配置拼装url)
+       invoker = refprotocol.refer(interfaceClass, urls.get(0));
+       
+	 	// 创建服务代理
+    	return (T) proxyFactory.getProxy(invoker);
+	 }
+}
+```
+
+```
+DubboProtocol
+
+    public <T> Invoker<T> refer(Class<T> serviceType, URL url) throws RpcException {
+        // create rpc invoker.
+        DubboInvoker<T> invoker = new DubboInvoker<T>(serviceType, url, getClients(url), invokers);
+        invokers.add(invoker);
+        return invoker;
+    }
+```
+
+```
+public class JavassistProxyFactory extends AbstractProxyFactory {
+    public <T> T getProxy(Invoker<T> invoker, Class<?>[] interfaces) {
+        return (T) Proxy.getProxy(interfaces).newInstance(new InvokerInvocationHandler(invoker));
+    }
+}
+```
 
 
 
