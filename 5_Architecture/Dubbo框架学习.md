@@ -1,7 +1,91 @@
 # Dubbo
 
-Main启动: 容器模块com.alibaba.dubbo.container.Main 
 
+
+## update @ 20160611
+通过一个简单的RPC例子，对Exporter和Invoker的概念有定理解。
+
+
+梳理概念
+
+* Invoker: 
+* Exporter: 暴露服务即绑定ServerSocket到配置端口(网络通信层面)，这样就可以接受外面的请求了。所以这个叫做暴露服务。
+* Protocol
+
+* 在RPC中，Protocol是核心层，也就是只要有Protocol + Invoker + Exporter就可以完成非透明的RPC调用，然后在Invoker的主过程上Filter拦截点。
+* Remoting模块: 通讯层。实现是Dubbo协议的实现。Remoting内部再划为Transport传输层和Exchange信息交换层，Transport层只负责单向消息传输，是对Mina,Netty,Grizzly的抽象，它也可以扩展UDP传输，而Exchange层是在传输层之上封装了Request-Response语义。
+
+
+梳理过程
+
+* 服务启动过程
+* 消费者消费过程
+
+
+服务启动过程
+
+```
+    private void doExportUrlsFor1Protocol(ProtocolConfig protocolConfig, List<URL> registryURLs) {
+        // 导出服务
+        String contextPath = protocolConfig.getContextpath();
+        URL url = new URL(name, host, port, (contextPath == null || contextPath.length() == 0 ? "" : contextPath + "/") + path, map);
+		 // registryURLs 是注册url列表
+		for (URL registryURL : registryURLs) {
+       		url = url.addParameterIfAbsent("dynamic", registryURL.getParameter("dynamic"));
+            URL monitorUrl = loadMonitor(registryURL);
+            //获取invoker  
+            Invoker<?> invoker = proxyFactory.getInvoker(ref, (Class) interfaceClass, registryURL.addParameterAndEncoded(Constants.EXPORT_KEY, url.toFullString()));
+            //根据协议将invoker暴露成exporter，具体过程是创建一个ExchangeServer，它会绑定一个ServerSocket到配置端口  
+            Exporter<?> exporter = protocol.export(invoker);
+            //将创建的exporter放进链表便于管理  
+            exporters.add(exporter);
+    	}
+	}
+```
+
+
+
+## update @ 20160605
+之前看dubbo源码不是很理解export的细节过程，直到看到 `RPC框架几行代码就够了`这篇博客的介绍，才有所理解。
+
+博客的评论也基本和个人认识一致，主要就是几个核心概念
+
+```
+1. Socket编程，传输Object
+2. 动态代理
+```
+
+### 通信协议
+客户端和服务端通信需要约定`通信协议`(这个协议很关键), 这个例子中的约定即是: 方法名，参数类型，方法所需参数
+
+### 动态代理
+`动态代理`的概念也需要理解。
+
+### 网络通信
+Netty框架 NIO
+
+
+
+### Ref
+
+```
+RPC框架几行代码就够了
+http://javatar.iteye.com/blog/1123915
+
+动态代理
+http://www.codekk.com/blogs/detail/54cfab086c4761e5001b253d
+http://182.254.149.236/?p=71
+http://zmx.iteye.com/blog/678416
+
+
+Dubbo源码分析
+http://blog.csdn.net/flashflight/article/details/43939275
+http://gaofeihang.cn/archives/155
+```
+
+
+## before 20160505
+Main启动: 容器模块com.alibaba.dubbo.container.Main 
 
 问题：
 
@@ -322,8 +406,80 @@ public class DubboProtocol extends AbstractProtocol {
         server = Exchangers.bind(url, requestHandler);
         return server;
     }
-```
+    
+    
+    public static ExchangeServer bind(URL url, ExchangeHandler handler) throws RemotingException {
+        url = url.addParameterIfAbsent(Constants.CODEC_KEY, "exchange");
+        return getExchanger(url).bind(url, handler);
+    }
 
+
+public class HeaderExchanger implements Exchanger {
+    public static final String NAME = "header";
+    public ExchangeClient connect(URL url, ExchangeHandler handler) throws RemotingException {
+        return new HeaderExchangeClient(Transporters.connect(url, new DecodeHandler(new HeaderExchangeHandler(handler))));
+    }
+    public ExchangeServer bind(URL url, ExchangeHandler handler) throws RemotingException {
+        return new HeaderExchangeServer(Transporters.bind(url, new DecodeHandler(new HeaderExchangeHandler(handler))));
+    }
+
+}
+
+public class Transporters {
+    public static Server bind(URL url, ChannelHandler... handlers) throws RemotingException {
+        ChannelHandler handler;
+        handler = new ChannelHandlerDispatcher(handlers);
+        return getTransporter().bind(url, handler);
+    }
+    
+    public static Transporter getTransporter() {
+       return ExtensionLoader.getExtensionLoader(Transporter.class).getAdaptiveExtension();
+    }
+}
+ 
+ 
+ public class NettyTransporter implements Transporter {    
+    public Server bind(URL url, ChannelHandler listener) throws RemotingException {
+        return new NettyServer(url, listener);
+    }
+    public Client connect(URL url, ChannelHandler listener) throws RemotingException {
+        return new NettyClient(url, listener);
+    }
+}
+ 
+ 
+ public class NettyServer extends AbstractServer implements Server {
+    protected void doOpen() throws Throwable {
+        NettyHelper.setNettyLoggerFactory();
+        ExecutorService boss = Executors.newCachedThreadPool(new NamedThreadFactory("NettyServerBoss", true));
+        ExecutorService worker = Executors.newCachedThreadPool(new NamedThreadFactory("NettyServerWorker", true));
+        ChannelFactory channelFactory = new NioServerSocketChannelFactory(boss, worker, getUrl().getPositiveParameter(Constants.IO_THREADS_KEY, Constants.DEFAULT_IO_THREADS));
+        bootstrap = new ServerBootstrap(channelFactory);
+        
+        final NettyHandler nettyHandler = new NettyHandler(getUrl(), this);
+        channels = nettyHandler.getChannels();
+        // https://issues.jboss.org/browse/NETTY-365
+        // https://issues.jboss.org/browse/NETTY-379
+        // final Timer timer = new HashedWheelTimer(new NamedThreadFactory("NettyIdleTimer", true));
+        bootstrap.setPipelineFactory(new ChannelPipelineFactory() {
+            public ChannelPipeline getPipeline() {
+                NettyCodecAdapter adapter = new NettyCodecAdapter(getCodec() ,getUrl(), NettyServer.this);
+                ChannelPipeline pipeline = Channels.pipeline();
+                /*int idleTimeout = getIdleTimeout();
+                if (idleTimeout > 10000) {
+                    pipeline.addLast("timer", new IdleStateHandler(timer, idleTimeout / 1000, 0, 0));
+                }*/
+                pipeline.addLast("decoder", adapter.getDecoder());
+                pipeline.addLast("encoder", adapter.getEncoder());
+                pipeline.addLast("handler", nettyHandler);
+                return pipeline;
+            }
+        });
+        // bind
+        channel = bootstrap.bind(getBindAddress());
+    }
+}
+```
 
 
 
@@ -585,3 +741,4 @@ programming such as TCP and UDP socket server.
 # Hibernate框架
 主要是实现数据库与实体类间的映射，使的操作实体类相当与操作hibernate框架。
 
+# Spring 框架
