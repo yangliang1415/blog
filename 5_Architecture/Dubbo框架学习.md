@@ -1,10 +1,15 @@
 # Dubbo
 
+## update @ 20160702
+
+实践熟悉下面2个概念。庖丁解牛。
+
+* Spring: dubbo就是委托给spring来管理bean的生命周期的。afterPropertiesSet是Spring中的一个回调函数
+* SPI(Service Provider Interface 扩展点机制): 专门的开源项目Cooma；com.alibaba.dubbo.common.extension包
 
 
 ## update @ 20160611
 通过一个简单的RPC例子，对Exporter和Invoker的概念有定理解。
-
 
 梳理概念
 
