@@ -1,3 +1,9 @@
+删除本地无用的追踪分支(远程分支已被删除)
+git remote prune origin
+
+
+
+
 git常用
 https://www.zhihu.com/question/21995370
 http://www.ruanyifeng.com/blog/2014/06/git_remote.html

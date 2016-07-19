@@ -1,12 +1,19 @@
 # Dubbo
 
+## update @ 20160717
+
+* 了解网络编程: netty框架
+* 了解容器servlet
+
+## update @ 20160709
+
+* 在idea运行demo，断点调试
+* TODO 了解各种技术细节
 
 ## update @ 20160705
 
 servlet啥容器？
 通过http协议来理解, 结合服务启动bug日志
-
-
 
 ## update @ 20160702
 
