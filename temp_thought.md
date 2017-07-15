@@ -5,26 +5,6 @@ yangliang @ 20160505 建立
 
 
 ```
-生日礼物
-
-[y] 围巾
-https://item.jd.com/10054057855.html
-https://detail.tmall.com/item.htm?spm=a220o.1000855.1998025129.4.EyJWJl&id=523155558941&pvid=fd1dbd5e-9554-4774-8c12-32f6a3429fe0&abbucket=_AB-M32_B6&acm=03054.1003.1.971095&abtest=_AB-LR32-PR32&scm=1007.12559.40794.100200300000000&pos=4
-https://detail.tmall.com/item.htm?spm=a220o.1000855.1998025129.1.yS7G7i&id=40444569990&pvid=c1df0349-aacd-4a93-a65e-0d35e6f99540&abbucket=_AB-M32_B10&acm=03054.1003.1.971095&abtest=_AB-LR32-PR32&scm=1007.12559.40794.100200300000000&pos=1
-
-[y] 热水袋
-[y] 保暖内衣
-
-[op] 护手护肤霜(护肤): 妮维雅、瑰珀翠、欧舒
-
-床上四件套(睡眠): 床垫，蚕丝被，记忆枕 
-扫地机器人: 过年考虑买
-足浴盆 + 泡脚药水
-```
-
-
-
-```
 网络编程
 RPC
 

@@ -1,5 +1,32 @@
 # Dubbo
 
+## update @ 20170314
+ 
+* client调用server的流程：http://gaofeihang.cn/archives/255
+* server的启动过程：http://gaofeihang.cn/archives/155
+* 动态代理的理解--Proxy代理的好处
+
+
+
+InvocationHandler what
+
+
+```
+Invoker – 执行具体的远程调用
+Exporter – 暴露服务的引用，或取消暴露
+
+Protocol – 服务地址的发布和订阅
+```
+
+
+
+```
+ref:
+https://en.wikipedia.org/wiki/Request%E2%80%93response
+```
+
+
+
 ## update @ 20160717
 
 * 了解网络编程: netty框架
