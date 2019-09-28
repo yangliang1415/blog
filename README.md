@@ -1,10 +1,15 @@
 ```
+README定位：个人履历和知识库的总结
+
 lucusyang create@20190928@良渚
-README定位：个人履历和知识矩阵的总结
+-框架梳理
+-资源整合
+
 
 TODO
-- 细化总结各业务知识
-- 工程和算法相关技术知识，分专题总结
+-细化总结各业务知识
+-工程和算法相关技术知识，分专题总结
+	-配置缓存方案小结，见这里
 ```
 
 
@@ -17,7 +22,7 @@ TODO
 
 ### 广告
 
-第一份工作的总结，见[这里]()
+第一份工作的总结，见[这里](https://github.com/yangliang1415/blog/blob/master/temp/first_work.md)
 
 简要介绍了广告业务，需要解决的问题，及涉及到的相关技术点
 
@@ -27,7 +32,7 @@ TODO
 
 这个有专门起专题总结过，见[这里](https://github.com/yangliang1415/awesome-risk-control)。架构大图如下，源自美团blog。
 
-![VC](https://github.com/yangliang1415/awesome-risk-control/raw/master/picture_resource/meituan_riskcontrol_architure.png)
+![VC](temp/pic/meituan_riskcontrol_architure.png)
 
 
 
@@ -47,9 +52,11 @@ TODO
 
 ## 二、工程
 
-Java 征途，参考[这里](https://blog.csdn.net/mindfloating/article/details/50821300)
 
-![Java](https://img-blog.csdn.net/20160307180916029)
+
+Java 征途，参考[这里]()
+
+![Java](temp/pic/Java_Tech.jpg)
 
 
 
@@ -57,7 +64,7 @@ Java 征途，参考[这里](https://blog.csdn.net/mindfloating/article/details/
 
 ## 三、算法
 
-基本数据结构和算法
+基本数据结构和算法，见[这里](https://github.com/yangliang1415/algo)
 
-常用机器学习算法
+常用机器学习算法，见这里
 
